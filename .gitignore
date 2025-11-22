@@ -1,0 +1,30 @@
+# Node / Next artifacts
+node_modules
+npm-debug.log*
+yarn-error.log*
+.DS_Store
+.next
+.turbo
+.npm
+pnpm-lock.yaml
+yarn.lock
+
+# Environment / secrets
+.env
+.env.*
+*.local
+*.key
+*.pem
+*.p12
+*.crt
+*.csr
+*.der
+*.pfx
+*-credentials.json
+*-key.json
+*serviceaccount*.json
+*service-account*.json
+pitchwindowai-*.json
+
+# Logs
+*.log

@@ -1,0 +1,38 @@
+:root {
+  --gr-red: #EB0029;
+  --gr-black: #000000;
+  --gr-white: #ffffff;
+  --gr-silver: #c4c4c4;
+  --gr-gray-light: #1A1A1A;
+  --gr-gray-medium: #222222;
+  --gr-gray-dark: #0C0C0C;
+  --gr-green: #00E676;
+  --gr-orange: #FF8F00;
+  --gr-alert-deep: #2B0008;
+  --border-subtle: #333333;
+  --panel-border: #1b1b1b;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body.app-body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--gr-gray-dark);
+  color: var(--gr-white);
+  font-family: var(--font-primary, "Manrope"), "Inter", system-ui, -apple-system, sans-serif;
+  letter-spacing: 0.01em;
+}
+
+a {
+  color: inherit;
+}
+
+button,
+select {
+  font-family: inherit;
+}

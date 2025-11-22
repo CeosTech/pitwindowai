@@ -1,0 +1,57 @@
+<svg width="1200" height="600" viewBox="0 0 1200 600" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="PitWindow AI Toyota Gazoo Racing">
+  <defs>
+    <linearGradient id="bodyPaint" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#eb0029"/>
+      <stop offset="45%" stop-color="#0c0c0c"/>
+      <stop offset="65%" stop-color="#eb0029"/>
+      <stop offset="100%" stop-color="#0c0c0c"/>
+    </linearGradient>
+    <linearGradient id="shadow" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="rgba(0,0,0,0.45)"/>
+      <stop offset="100%" stop-color="rgba(0,0,0,0.15)"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="600" fill="#0b0b0b"/>
+  <rect x="0" y="360" width="1200" height="8" fill="#c4c4c4"/>
+  <rect x="0" y="348" width="520" height="10" fill="#eb0029"/>
+  <rect x="0" y="374" width="260" height="8" fill="#0c0c0c"/>
+
+  <text x="80" y="110" fill="#f5f5f5" font-family="Manrope, 'Segoe UI', sans-serif" font-size="86" font-weight="800">PITWINDOW</text>
+  <text x="625" y="110" fill="#eb0029" font-family="Manrope, 'Segoe UI', sans-serif" font-size="86" font-weight="800">AI</text>
+
+  <g transform="translate(80 150)">
+    <rect x="0" y="0" width="140" height="74" rx="10" fill="#0c0c0c" stroke="#333" stroke-width="4"/>
+    <rect x="0" y="0" width="70" height="74" rx="10" fill="#eb0029"/>
+    <text x="16" y="50" fill="#fff" font-family="Manrope, 'Segoe UI', sans-serif" font-size="36" font-weight="900">G</text>
+    <text x="52" y="50" fill="#fff" font-family="Manrope, 'Segoe UI', sans-serif" font-size="36" font-weight="900">R</text>
+    <text x="160" y="34" fill="#fff" font-family="Manrope, 'Segoe UI', sans-serif" font-size="28" font-weight="800" letter-spacing="1">TOYOTA</text>
+    <text x="160" y="64" fill="#fff" font-family="Manrope, 'Segoe UI', sans-serif" font-size="28" font-weight="800" letter-spacing="1">GAZOO</text>
+  </g>
+
+  <ellipse cx="650" cy="470" rx="420" ry="40" fill="url(#shadow)"/>
+
+  <g transform="translate(260 250)">
+    <rect x="0" y="100" width="620" height="80" rx="24" fill="#1a1a1a" stroke="#313131" stroke-width="4"/>
+    <rect x="30" y="80" width="560" height="60" rx="20" fill="url(#bodyPaint)"/>
+    <rect x="80" y="40" width="240" height="70" rx="14" fill="#141414"/>
+    <rect x="340" y="40" width="120" height="70" rx="14" fill="#0f0f0f" stroke="#2b2b2b" stroke-width="3"/>
+    <rect x="80" y="150" width="520" height="18" rx="6" fill="#d9d9d9" opacity="0.85"/>
+    <rect x="120" y="60" width="110" height="18" rx="6" fill="#eb0029"/>
+    <rect x="260" y="60" width="60" height="18" rx="6" fill="#c4c4c4"/>
+    <rect x="430" y="65" width="70" height="16" rx="6" fill="#0f172a"/>
+    <rect x="535" y="68" width="40" height="28" rx="6" fill="#eb0029"/>
+
+    <circle cx="120" cy="190" r="56" fill="#0d0d0d" stroke="#3a3a3a" stroke-width="6"/>
+    <circle cx="120" cy="190" r="34" fill="#1f1f1f" stroke="#eb0029" stroke-width="5"/>
+    <circle cx="120" cy="190" r="10" fill="#e5e7eb"/>
+
+    <circle cx="540" cy="190" r="56" fill="#0d0d0d" stroke="#3a3a3a" stroke-width="6"/>
+    <circle cx="540" cy="190" r="34" fill="#1f1f1f" stroke="#eb0029" stroke-width="5"/>
+    <circle cx="540" cy="190" r="10" fill="#e5e7eb"/>
+
+    <rect x="210" y="132" width="90" height="12" rx="5" fill="rgba(0,0,0,0.35)"/>
+    <rect x="360" y="132" width="90" height="12" rx="5" fill="rgba(0,0,0,0.35)"/>
+    <text x="350" y="125" fill="#f3f4f6" font-family="Manrope, 'Segoe UI', sans-serif" font-size="26" font-weight="900">GR</text>
+    <text x="260" y="36" fill="#f5f5f5" font-family="Manrope, 'Segoe UI', sans-serif" font-size="30" font-weight="800">TOYOTA</text>
+  </g>
+</svg>

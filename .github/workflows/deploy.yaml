@@ -1,0 +1,88 @@
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: ${{ secrets.GCP_REGION }}
+  BACKEND_SERVICE: pitwindow-backend
+  FRONTEND_SERVICE: pitwindow-frontend
+  RUNTIME_SA: pitwindowai-vertex@pitchwindowai.iam.gserviceaccount.com
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Auth to GCP (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_WIF_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build backend image
+        run: |
+          gcloud builds submit \
+            --project "$PROJECT_ID" \
+            --tag gcr.io/$PROJECT_ID/$BACKEND_SERVICE \
+            ./backend
+
+      - name: Deploy backend to Cloud Run
+        run: |
+          gcloud run deploy $BACKEND_SERVICE \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --image gcr.io/$PROJECT_ID/$BACKEND_SERVICE \
+            --allow-unauthenticated \
+            --service-account "$RUNTIME_SA" \
+            --set-env-vars USE_VERTEX_AI=true,GCP_PROJECT_ID=$PROJECT_ID,GCP_LOCATION=$REGION,VERTEX_GEMINI_MODEL=gemini-1.5-flash,PORT=8080
+
+  frontend:
+    needs: backend
+    runs-on: ubuntu-latest
+    env:
+      BACKEND_URL: ${{ secrets.BACKEND_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Auth to GCP (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_WIF_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build frontend image (inject backend URL)
+        run: |
+          if [ -z "$BACKEND_URL" ]; then
+            echo "BACKEND_URL secret is required (Cloud Run backend URL, e.g. https://pitwindow-backend-xxxx-uc.a.run.app)"
+            exit 1
+          fi
+          gcloud builds submit \
+            --project "$PROJECT_ID" \
+            --tag gcr.io/$PROJECT_ID/$FRONTEND_SERVICE \
+            --build-arg NEXT_PUBLIC_BACKEND_URL=$BACKEND_URL \
+            ./frontend
+
+      - name: Deploy frontend to Cloud Run
+        run: |
+          gcloud run deploy $FRONTEND_SERVICE \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --image gcr.io/$PROJECT_ID/$FRONTEND_SERVICE \
+            --allow-unauthenticated \
+            --service-account "$RUNTIME_SA" \
+            --set-env-vars NEXT_PUBLIC_BACKEND_URL=$BACKEND_URL,HOSTNAME=0.0.0.0,PORT=8080
