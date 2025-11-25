@@ -1,7 +1,8 @@
 import express from "express";
 import cors from "cors";
 import multer from "multer";
-import { loadCSV, saveToGCS } from "./dataLoader.js";
+import path from "path";
+import { loadCSV, saveToGCS, saveToLocal } from "./dataLoader.js";
 import { DATASETS } from "./datasetsConfig.js";
 import { PitStrategyEngine } from "./strategyEngine.js";
 import { hasVertex, initVertex, runAnomalyScan, runExplanation, runPitStrategist } from "./vertexClient.js";
@@ -12,6 +13,7 @@ const upload = multer({
   limits: { fileSize: 25 * 1024 * 1024 } // 25 MB per file
 });
 const GCS_DATA_BUCKET = process.env.GCS_DATA_BUCKET;
+const DATA_ROOT = process.env.DATA_DIR || path.join(process.cwd(), "data");
 
 const app = express();
 app.use(cors());
@@ -122,57 +124,82 @@ app.post(
   ]),
   async (req, res) => {
     try {
-      if (!GCS_DATA_BUCKET) {
-        return res.status(400).json({ error: "GCS_DATA_BUCKET not configured" });
-      }
       const { id, label } = req.body || {};
       const telemetryFile = req.files?.telemetry?.[0];
       const lapsFile = req.files?.laps?.[0];
+      const rawId = (id || "").trim();
+      const datasetId = rawId.replace(/[^a-zA-Z0-9_-]/g, "_");
+      const useGcs = Boolean(GCS_DATA_BUCKET);
 
-      if (!id) return res.status(400).json({ error: "Missing dataset id" });
+      if (!datasetId) return res.status(400).json({ error: "Missing dataset id" });
       if (!telemetryFile && !lapsFile) {
         return res.status(400).json({ error: "Provide at least one file (telemetry or laps)" });
       }
 
-      const entry = datasets[id] || {};
-      entry.label = label || entry.label || id;
+      const entry = datasets[datasetId] || {};
+      entry.label = label || entry.label || rawId || datasetId;
 
-      if (telemetryFile) {
-        entry.telemetry = await saveToGCS(
-          GCS_DATA_BUCKET,
-          `${id}/telemetry.csv`,
-          telemetryFile.buffer,
-          telemetryFile.mimetype
-        );
+      if (useGcs) {
+        if (!GCS_DATA_BUCKET) {
+          return res.status(400).json({ error: "GCS_DATA_BUCKET not configured" });
+        }
+        if (telemetryFile) {
+          entry.telemetry = await saveToGCS(
+            GCS_DATA_BUCKET,
+            `${datasetId}/telemetry.csv`,
+            telemetryFile.buffer,
+            telemetryFile.mimetype
+          );
+        }
+        if (lapsFile) {
+          entry.laps = await saveToGCS(
+            GCS_DATA_BUCKET,
+            `${datasetId}/laps.csv`,
+            lapsFile.buffer,
+            lapsFile.mimetype
+          );
+        }
+      } else {
+        if (telemetryFile) {
+          entry.telemetry = await saveToLocal(
+            DATA_ROOT,
+            path.join(datasetId, "telemetry.csv"),
+            telemetryFile.buffer
+          );
+        }
+        if (lapsFile) {
+          entry.laps = await saveToLocal(
+            DATA_ROOT,
+            path.join(datasetId, "laps.csv"),
+            lapsFile.buffer
+          );
+        }
       }
-      if (lapsFile) {
-        entry.laps = await saveToGCS(
-          GCS_DATA_BUCKET,
-          `${id}/laps.csv`,
-          lapsFile.buffer,
-          lapsFile.mimetype
-        );
-      }
+
+      // allow a single CSV to be used for both streams if only one was provided
+      if (!entry.telemetry && entry.laps) entry.telemetry = entry.laps;
+      if (!entry.laps && entry.telemetry) entry.laps = entry.telemetry;
 
       // Require both paths to be set to consider the dataset usable
       if (!entry.telemetry || !entry.laps) {
-        datasets[id] = entry;
+        datasets[datasetId] = entry;
         return res.status(400).json({
           error: "Dataset registered but missing telemetry or laps path",
-          dataset: { id, ...entry }
+          dataset: { id: datasetId, ...entry },
+          storage: useGcs ? "gcs" : "local"
         });
       }
 
-      datasets[id] = entry;
-      if (!CURRENT_DATASET) CURRENT_DATASET = id;
-      if (id === CURRENT_DATASET) {
-        await reloadDataset(id).catch(err => {
+      datasets[datasetId] = entry;
+      if (!CURRENT_DATASET) CURRENT_DATASET = datasetId;
+      if (datasetId === CURRENT_DATASET) {
+        await reloadDataset(datasetId).catch(err => {
           console.error("Failed to reload dataset after upload", err);
         });
         startTelemetryTicker();
       }
 
-      res.json({ ok: true, dataset: { id, ...entry } });
+      res.json({ ok: true, dataset: { id: datasetId, ...entry }, storage: useGcs ? "gcs" : "local" });
     } catch (err) {
       console.error("Upload error", err);
       res.status(500).json({ error: "Upload failed" });

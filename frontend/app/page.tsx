@@ -78,6 +78,14 @@ const GlobeIcon = () => (
   </svg>
 );
 
+const UploadIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 16V4" />
+    <path d="m6 10 6-6 6 6" />
+    <path d="M20 18v2H4v-2" />
+  </svg>
+);
+
 const GRLogoSvg = () => (
   <svg viewBox="0 0 120 50" role="img" aria-label="Toyota Gazoo Racing">
     <defs>
@@ -118,6 +126,13 @@ export default function Page() {
   const [compoundFilter, setCompoundFilter] = useState<"all" | "soft" | "medium" | "hard">("all");
   const [datasetSearch, setDatasetSearch] = useState("");
   const [driverSearch, setDriverSearch] = useState("");
+  const [uploadDatasetId, setUploadDatasetId] = useState("");
+  const [uploadLabel, setUploadLabel] = useState("");
+  const [uploadTelemetryFile, setUploadTelemetryFile] = useState<File | null>(null);
+  const [uploadLapsFile, setUploadLapsFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const [showLanding, setShowLanding] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [aiQuestion, setAiQuestion] = useState("If safety car on lap 18, when should we pit?");
@@ -215,33 +230,119 @@ export default function Page() {
 
   const handleDatasetChange = async (id: string) => {
     setSelectedDataset(id);
-    await fetch(`${BACKEND_URL}/datasets/select`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id })
-    });
-    const driversRes = await fetch(`${BACKEND_URL}/drivers`);
-    const driversData: Driver[] = await driversRes.json();
-    setDrivers(driversData);
-    if (driversData.length) {
-      setSelectedDriver(driversData[0].id);
-      await fetch(`${BACKEND_URL}/drivers/select`, {
+    setBackendError(null);
+    try {
+      const res = await fetch(`${BACKEND_URL}/datasets/select`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: driversData[0].id })
+        body: JSON.stringify({ id })
       });
+      if (!res.ok) {
+        throw new Error("Dataset selection failed");
+      }
+
+      const driversRes = await fetch(`${BACKEND_URL}/drivers`);
+      if (!driversRes.ok) {
+        throw new Error("Could not load drivers for dataset");
+      }
+      const driversData: Driver[] = await driversRes.json();
+      setDrivers(driversData);
+      if (driversData.length) {
+        const firstDriver = driversData[0].id;
+        setSelectedDriver(firstDriver);
+        await fetch(`${BACKEND_URL}/drivers/select`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: firstDriver })
+        });
+      } else {
+        setSelectedDriver(null);
+      }
+      setTimeline([]);
+      setLive(null);
+      setStrategy(null);
+      setAnomalies(null);
+      setAiResponse(null);
+      return true;
+    } catch (error: any) {
+      const msg = error?.message || "Unable to switch dataset";
+      setBackendError(msg);
+      return false;
     }
-    setTimeline([]);
   };
 
   const handleDriverChange = async (id: string) => {
     setSelectedDriver(id);
-    await fetch(`${BACKEND_URL}/drivers/select`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id })
-    });
-    setTimeline([]);
+    setBackendError(null);
+    try {
+      const res = await fetch(`${BACKEND_URL}/drivers/select`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id })
+      });
+      if (!res.ok) {
+        throw new Error("Driver selection failed");
+      }
+      setTimeline([]);
+    } catch (error: any) {
+      setBackendError(error?.message || "Unable to switch driver");
+    }
+  };
+
+  const handleUploadDataset = async () => {
+    const trimmedId = uploadDatasetId.trim();
+    const trimmedLabel = uploadLabel.trim();
+    if (!trimmedId) {
+      setUploadError("Ajoute un identifiant de dataset");
+      return;
+    }
+    if (!uploadTelemetryFile && !uploadLapsFile) {
+      setUploadError("Ajoute au moins un CSV (télémétrie ou temps au tour)");
+      return;
+    }
+
+    setUploading(true);
+    setUploadError(null);
+    setUploadStatus("Upload en cours...");
+    setBackendError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("id", trimmedId);
+      if (trimmedLabel) formData.append("label", trimmedLabel);
+      if (uploadTelemetryFile) formData.append("telemetry", uploadTelemetryFile);
+      if (uploadLapsFile) formData.append("laps", uploadLapsFile);
+
+      const res = await fetch(`${BACKEND_URL}/datasets/upload`, {
+        method: "POST",
+        body: formData
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "Upload failed");
+      }
+
+      const datasetId = data?.dataset?.id || trimmedId;
+      const datasetLabel = data?.dataset?.label || trimmedLabel || datasetId;
+      setDatasets(prev => {
+        const next = prev.filter(d => d.id !== datasetId);
+        return [...next, { id: datasetId, label: datasetLabel }];
+      });
+      const selected = await handleDatasetChange(datasetId);
+      if (!selected) {
+        throw new Error("Dataset enregistré mais non sélectionné");
+      }
+      setUploadStatus("CSV importé et sélectionné");
+      setUploadDatasetId("");
+      setUploadLabel("");
+      setUploadTelemetryFile(null);
+      setUploadLapsFile(null);
+    } catch (error: any) {
+      setUploadStatus(null);
+      setUploadError(error?.message || "Upload failed");
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleAskStrategist = async () => {
@@ -505,6 +606,73 @@ export default function Page() {
 
       <main className={styles.main}>
         <section className={styles.controlsBar}>
+          <div className={`${styles.controlBlock} ${styles.uploadBlock}`}>
+            <div className={styles.uploadHeader}>
+              <label className={styles.controlLabel}><UploadIcon /> Upload CSV</label>
+              {uploadStatus && <span className={styles.metaChip}>{uploadStatus}</span>}
+            </div>
+            <div className={styles.uploadRow}>
+              <input
+                className={styles.searchInput}
+                placeholder="ID dataset (ex: VIR_R1)"
+                value={uploadDatasetId}
+                onChange={e => {
+                  setUploadDatasetId(e.target.value);
+                  setUploadError(null);
+                  setUploadStatus(null);
+                }}
+              />
+              <input
+                className={styles.searchInput}
+                placeholder="Label public (optionnel)"
+                value={uploadLabel}
+                onChange={e => setUploadLabel(e.target.value)}
+              />
+            </div>
+            <div className={styles.uploadRow}>
+              <label className={styles.fileInput}>
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={e => {
+                    setUploadTelemetryFile(e.target.files?.[0] ?? null);
+                    setUploadError(null);
+                    setUploadStatus(null);
+                    e.target.value = "";
+                  }}
+                />
+                <div className={styles.fileInputText}>
+                  <span className={styles.fileInputTitle}>Télémétrie CSV</span>
+                  <span className={styles.fileInputMeta}>{uploadTelemetryFile?.name || "Sélectionne un fichier"}</span>
+                </div>
+              </label>
+              <label className={styles.fileInput}>
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={e => {
+                    setUploadLapsFile(e.target.files?.[0] ?? null);
+                    setUploadError(null);
+                    setUploadStatus(null);
+                    e.target.value = "";
+                  }}
+                />
+                <div className={styles.fileInputText}>
+                  <span className={styles.fileInputTitle}>Tours / temps (optionnel)</span>
+                  <span className={styles.fileInputMeta}>{uploadLapsFile?.name || "Utilise le même CSV si besoin"}</span>
+                </div>
+              </label>
+            </div>
+            <div className={styles.uploadFooter}>
+              <button className={styles.heroButton} type="button" onClick={handleUploadDataset} disabled={uploading}>
+                {uploading ? "Upload en cours..." : "Uploader et analyser"}
+              </button>
+              <div className={styles.uploadMeta}>
+                <span>Un seul CSV suffit : on le duplique côté backend.</span>
+                {uploadError && <span className={styles.uploadError}>{uploadError}</span>}
+              </div>
+            </div>
+          </div>
           <div className={styles.controlBlock}>
             <label className={styles.controlLabel}><GlobeIcon /> Dataset search</label>
             <input

@@ -334,6 +334,26 @@
   gap: 8px;
 }
 
+.uploadBlock {
+  grid-column: 1 / -1;
+  background: linear-gradient(120deg, rgba(235, 0, 41, 0.08), rgba(0, 0, 0, 0.1)), #0d0d0d;
+  border-color: var(--border-subtle);
+}
+
+.uploadHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.uploadRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
 .controlLabel {
   display: inline-flex;
   align-items: center;
@@ -371,6 +391,70 @@
 
 .searchInput:focus {
   outline: 1px solid var(--gr-red);
+}
+
+.fileInput {
+  position: relative;
+  min-height: 64px;
+  border: 1px dashed var(--panel-border);
+  border-radius: 10px;
+  background: #0c0c0c;
+  padding: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+
+.fileInput:hover {
+  border-color: var(--border-subtle);
+  background: #121212;
+  transform: translateY(-1px);
+}
+
+.fileInput input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.fileInputText {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fileInputTitle {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.fileInputMeta {
+  color: var(--gr-silver);
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.uploadFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.uploadMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--gr-silver);
+  font-size: 12px;
+}
+
+.uploadError {
+  color: var(--gr-orange);
+  font-weight: 700;
 }
 
 .rangeInput {

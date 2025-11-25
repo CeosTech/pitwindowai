@@ -1,4 +1,5 @@
 import fs from "fs";
+import path from "path";
 import { parse } from "csv-parse";
 import { Readable } from "stream";
 import { Storage } from "@google-cloud/storage";
@@ -61,4 +62,11 @@ export async function saveToGCS(bucket, destination, buffer, contentType = "text
     resumable: false
   });
   return `gs://${bucket}/${destination}`;
+}
+
+export async function saveToLocal(baseDir, relativePath, buffer) {
+  const destination = path.join(baseDir, relativePath);
+  await fs.promises.mkdir(path.dirname(destination), { recursive: true });
+  await fs.promises.writeFile(destination, buffer);
+  return destination;
 }

@@ -53,6 +53,8 @@ export const DATASETS = {
 ```
 The loader assigns `CAR_01` if no `car_id` column exists; include `car_id` to support multiple cars.
 
+You can also upload CSVs directly from the dashboard. Pick a dataset id + label, attach telemetry and (optionally) lap-time CSVs, and the backend will store them in GCS when `GCS_DATA_BUCKET` is set, or locally under `backend/data/<dataset_id>/` (override with `DATA_DIR`). If you only attach one CSV, it is reused for both telemetry and lap timing.
+
 ## Features (frontend)
 - Landing splash with GR visuals.
 - Header: dataset/driver selectors, live/sim status, latency chip, Settings panel.
