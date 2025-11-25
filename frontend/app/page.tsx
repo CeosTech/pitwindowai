@@ -293,17 +293,17 @@ export default function Page() {
     const trimmedId = uploadDatasetId.trim();
     const trimmedLabel = uploadLabel.trim();
     if (!trimmedId) {
-      setUploadError("Ajoute un identifiant de dataset");
+      setUploadError("Add a dataset id");
       return;
     }
     if (!uploadTelemetryFile && !uploadLapsFile) {
-      setUploadError("Ajoute au moins un CSV (télémétrie ou temps au tour)");
+      setUploadError("Attach at least one CSV (telemetry or lap times)");
       return;
     }
 
     setUploading(true);
     setUploadError(null);
-    setUploadStatus("Upload en cours...");
+    setUploadStatus("Uploading...");
     setBackendError(null);
 
     try {
@@ -330,9 +330,9 @@ export default function Page() {
       });
       const selected = await handleDatasetChange(datasetId);
       if (!selected) {
-        throw new Error("Dataset enregistré mais non sélectionné");
+        throw new Error("Dataset saved but not selected");
       }
-      setUploadStatus("CSV importé et sélectionné");
+      setUploadStatus("CSV uploaded and selected");
       setUploadDatasetId("");
       setUploadLabel("");
       setUploadTelemetryFile(null);
@@ -614,7 +614,7 @@ export default function Page() {
             <div className={styles.uploadRow}>
               <input
                 className={styles.searchInput}
-                placeholder="ID dataset (ex: VIR_R1)"
+                placeholder="Dataset ID (e.g. VIR_R1)"
                 value={uploadDatasetId}
                 onChange={e => {
                   setUploadDatasetId(e.target.value);
@@ -624,7 +624,7 @@ export default function Page() {
               />
               <input
                 className={styles.searchInput}
-                placeholder="Label public (optionnel)"
+                placeholder="Public label (optional)"
                 value={uploadLabel}
                 onChange={e => setUploadLabel(e.target.value)}
               />
@@ -642,8 +642,8 @@ export default function Page() {
                   }}
                 />
                 <div className={styles.fileInputText}>
-                  <span className={styles.fileInputTitle}>Télémétrie CSV</span>
-                  <span className={styles.fileInputMeta}>{uploadTelemetryFile?.name || "Sélectionne un fichier"}</span>
+                  <span className={styles.fileInputTitle}>Telemetry CSV (required)</span>
+                  <span className={styles.fileInputMeta}>{uploadTelemetryFile?.name || "Click to choose telemetry.csv"}</span>
                 </div>
               </label>
               <label className={styles.fileInput}>
@@ -658,17 +658,17 @@ export default function Page() {
                   }}
                 />
                 <div className={styles.fileInputText}>
-                  <span className={styles.fileInputTitle}>Tours / temps (optionnel)</span>
-                  <span className={styles.fileInputMeta}>{uploadLapsFile?.name || "Utilise le même CSV si besoin"}</span>
+                  <span className={styles.fileInputTitle}>Lap times CSV (optional)</span>
+                  <span className={styles.fileInputMeta}>{uploadLapsFile?.name || "Click to choose laps.csv (defaults to telemetry file)"}</span>
                 </div>
               </label>
             </div>
             <div className={styles.uploadFooter}>
               <button className={styles.heroButton} type="button" onClick={handleUploadDataset} disabled={uploading}>
-                {uploading ? "Upload en cours..." : "Uploader et analyser"}
+                {uploading ? "Uploading..." : "Upload and load dataset"}
               </button>
               <div className={styles.uploadMeta}>
-                <span>Un seul CSV suffit : on le duplique côté backend.</span>
+                <span>One CSV is enough; it will be reused for both streams.</span>
                 {uploadError && <span className={styles.uploadError}>{uploadError}</span>}
               </div>
             </div>
