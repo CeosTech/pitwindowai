@@ -1,0 +1,15 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - gcr.io/$PROJECT_ID/pitwindow-frontend:latest
+      - --build-arg
+      - NEXT_PUBLIC_BACKEND_URL=${_BACKEND_URL}
+      - frontend
+
+images:
+  - gcr.io/$PROJECT_ID/pitwindow-frontend:latest
+
+substitutions:
+  _BACKEND_URL: https://pitwindow-backend-4778520280.europe-west1.run.app/

@@ -200,15 +200,19 @@ export default function Page() {
       const start = performance.now();
       try {
         const liveRes = await fetch(`${BACKEND_URL}/state/live`);
+        if (!liveRes.ok) throw new Error("Live state unavailable");
         const liveData: LiveState = await liveRes.json();
         if (!mounted) return;
         setLive(liveData);
         const stratRes = await fetch(`${BACKEND_URL}/strategy/recommendation`);
+        if (!stratRes.ok) throw new Error("Strategy unavailable");
         const strategyData: StrategyResponse = await stratRes.json();
         if (!mounted) return;
+        if (!strategyData?.current_state) throw new Error("Strategy missing data");
         setStrategy(strategyData);
         setTimeline(prev => {
-          const lap = strategyData.current_state.lap;
+          const lap = strategyData.current_state?.lap;
+          if (lap === undefined || lap === null) return prev;
           if (prev.some(e => e.lap === lap)) return prev;
           return [...prev, { lap, best_pit_lap: strategyData.best_pit_lap, ts: Date.now() }];
         });
@@ -217,7 +221,8 @@ export default function Page() {
         setLatencyMs(Math.round(performance.now() - start));
       } catch (error) {
         if (!mounted) return;
-        setBackendError("Backend unreachable");
+        const message = error instanceof Error ? error.message : "Backend unreachable";
+        setBackendError(message);
       }
     };
     const interval = setInterval(tick, 1000);
