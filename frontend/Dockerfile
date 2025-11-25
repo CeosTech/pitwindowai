@@ -35,10 +35,3 @@ RUN npm ci --omit=dev
 EXPOSE 8080
 
 CMD ["npm", "run", "start"]
-# Build stage
-FROM node:20-slim AS builder
-WORKDIR /app
-
-ENV NEXT_TELEMETRY_DISABLED=1
-ARG NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
-ENV NEXT_PUBLIC_BACKEND_URL=${NEXT_PUBLIC_BACKEND_URL}
