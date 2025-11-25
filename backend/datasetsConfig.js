@@ -1,9 +1,11 @@
-// Configure here the real Toyota GR datasets once downloaded
-// Example paths assume you put the CSVs under backend/data/...
-export const DATASETS = {
-  VIR_R1: {
-    label: "VIR Race 1",
-    telemetry: "data/VIR_R1/telemetry.csv",   // replace with R1_vir_telemetry_data.csv
-    laps: "data/VIR_R1/lap_times.csv"        // replace with vir_lap_time_R1.csv
-  }
-};
+// Default datasets registry. Leave empty if you intend to upload CSVs at runtime
+// (they will be stored in GCS) or configure static entries pointing to gs://
+// locations, e.g.:
+// {
+//   VIR_R1: {
+//     label: "VIR Race 1",
+//     telemetry: "gs://your-bucket/datasets/VIR_R1/telemetry.csv",
+//     laps: "gs://your-bucket/datasets/VIR_R1/laps.csv"
+//   }
+// }
+export const DATASETS = {};

@@ -1,7 +1,0 @@
-car_id,driver_id,lap,Speed,Gear,aps,pbrake_f,pbrake_r
-CAR_01,Driver A,1,120,4,0.5,0,0
-CAR_01,Driver A,1,130,5,0.6,0,0
-CAR_01,Driver A,2,140,6,0.7,0,0
-CAR_02,Driver B,1,115,4,0.4,0,0
-CAR_02,Driver B,2,128,5,0.5,0,0
-CAR_02,Driver B,3,135,6,0.6,0,0

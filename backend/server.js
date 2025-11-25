@@ -1,17 +1,24 @@
 import express from "express";
 import cors from "cors";
-import { loadCSV } from "./dataLoader.js";
+import multer from "multer";
+import { loadCSV, saveToGCS } from "./dataLoader.js";
 import { DATASETS } from "./datasetsConfig.js";
 import { PitStrategyEngine } from "./strategyEngine.js";
 import { hasVertex, initVertex, runAnomalyScan, runExplanation, runPitStrategist } from "./vertexClient.js";
 
 const latencySimMs = () => 150 + Math.floor(Math.random() * 120);
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 } // 25 MB per file
+});
+const GCS_DATA_BUCKET = process.env.GCS_DATA_BUCKET;
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-let CURRENT_DATASET = "VIR_R1";
+const datasets = { ...DATASETS };
+let CURRENT_DATASET = null;
 let CURRENT_CAR_ID = "CAR_01";
 let CURRENT_STATE = { lap: 1, tire_age: 1, compound: "soft" };
 
@@ -19,25 +26,56 @@ let lapsAll = [];
 let telemAll = [];
 let engine = null;
 let telemetryIndex = 0;
+let tickerStarted = false;
 const vertexReady = initVertex();
 
-function reloadDataset() {
-  const cfg = DATASETS[CURRENT_DATASET];
-  lapsAll = loadCSV(cfg.laps);
-  telemAll = loadCSV(cfg.telemetry);
+const ROW_LIMIT = Number.parseInt(process.env.CSV_ROW_LIMIT || "0", 10);
+const effectiveRowLimit = Number.isFinite(ROW_LIMIT) && ROW_LIMIT > 0 ? ROW_LIMIT : null;
+
+const startTelemetryTicker = () => {
+  if (tickerStarted) return;
+  tickerStarted = true;
+  setInterval(() => {
+    if (!telemAll.length) return;
+    const carTelem = telemAll.filter(r => r.car_id === CURRENT_CAR_ID);
+    if (!carTelem.length) return;
+    telemetryIndex = Math.min(telemetryIndex + 1, carTelem.length - 1);
+
+    const row = carTelem[telemetryIndex];
+    if (row && row.lap) {
+      const newLap = Number(row.lap);
+      if (newLap > CURRENT_STATE.lap) {
+        CURRENT_STATE.lap = newLap;
+        CURRENT_STATE.tire_age += 1;
+      }
+    }
+  }, 800);
+};
+
+async function reloadDataset(datasetId = CURRENT_DATASET) {
+  const cfg = datasets[datasetId];
+  if (!cfg) {
+    engine = null;
+    lapsAll = [];
+    telemAll = [];
+    return;
+  }
+
+  lapsAll = await loadCSV(cfg.laps, { rowLimit: effectiveRowLimit });
+  telemAll = await loadCSV(cfg.telemetry, { rowLimit: effectiveRowLimit });
 
   // fallbacks if no car_id column
-  if (!lapsAll[0].car_id) {
+  if (lapsAll[0] && !lapsAll[0].car_id) {
     lapsAll = lapsAll.map(row => ({ car_id: "CAR_01", ...row }));
   }
-  if (!telemAll[0].car_id) {
+  if (telemAll[0] && !telemAll[0].car_id) {
     telemAll = telemAll.map(row => ({ car_id: "CAR_01", ...row }));
   }
 
   telemetryIndex = 0;
 
   const carLaps = lapsAll.filter(r => r.car_id === CURRENT_CAR_ID);
-  engine = new PitStrategyEngine(carLaps);
+  engine = carLaps.length ? new PitStrategyEngine(carLaps) : null;
 
   // init CURRENT_STATE from first lap
   if (carLaps.length) {
@@ -47,45 +85,116 @@ function reloadDataset() {
   }
 }
 
-// initial load
-reloadDataset();
-
-// advance telemetry index regularly to simulate live stream
-setInterval(() => {
-  const carTelem = telemAll.filter(r => r.car_id === CURRENT_CAR_ID);
-  if (!carTelem.length) return;
-  telemetryIndex = Math.min(telemetryIndex + 1, carTelem.length - 1);
-
-  const row = carTelem[telemetryIndex];
-  if (row && row.lap) {
-    const newLap = Number(row.lap);
-    if (newLap > CURRENT_STATE.lap) {
-      CURRENT_STATE.lap = newLap;
-      CURRENT_STATE.tire_age += 1;
+async function bootstrapDataset() {
+  const first = Object.keys(datasets)[0];
+  if (first) {
+    CURRENT_DATASET = first;
+    try {
+      await reloadDataset(first);
+      startTelemetryTicker();
+    } catch (err) {
+      console.error("Initial dataset load failed", err);
     }
+  } else {
+    console.warn("No default dataset configured. Upload a dataset to begin.");
   }
-}, 800);
+}
+
+const listDatasets = () =>
+  Object.entries(datasets).map(([id, cfg]) => ({
+    id,
+    label: cfg.label || id
+  }));
 
 // ---- API ENDPOINTS ----
 
 // list datasets
 app.get("/datasets", (req, res) => {
-  const list = Object.entries(DATASETS).map(([id, cfg]) => ({
-    id,
-    label: cfg.label
-  }));
-  res.json(list);
+  res.json(listDatasets());
 });
 
+// upload new dataset (telemetry + laps) to GCS and register it
+app.post(
+  "/datasets/upload",
+  upload.fields([
+    { name: "telemetry", maxCount: 1 },
+    { name: "laps", maxCount: 1 }
+  ]),
+  async (req, res) => {
+    try {
+      if (!GCS_DATA_BUCKET) {
+        return res.status(400).json({ error: "GCS_DATA_BUCKET not configured" });
+      }
+      const { id, label } = req.body || {};
+      const telemetryFile = req.files?.telemetry?.[0];
+      const lapsFile = req.files?.laps?.[0];
+
+      if (!id) return res.status(400).json({ error: "Missing dataset id" });
+      if (!telemetryFile && !lapsFile) {
+        return res.status(400).json({ error: "Provide at least one file (telemetry or laps)" });
+      }
+
+      const entry = datasets[id] || {};
+      entry.label = label || entry.label || id;
+
+      if (telemetryFile) {
+        entry.telemetry = await saveToGCS(
+          GCS_DATA_BUCKET,
+          `${id}/telemetry.csv`,
+          telemetryFile.buffer,
+          telemetryFile.mimetype
+        );
+      }
+      if (lapsFile) {
+        entry.laps = await saveToGCS(
+          GCS_DATA_BUCKET,
+          `${id}/laps.csv`,
+          lapsFile.buffer,
+          lapsFile.mimetype
+        );
+      }
+
+      // Require both paths to be set to consider the dataset usable
+      if (!entry.telemetry || !entry.laps) {
+        datasets[id] = entry;
+        return res.status(400).json({
+          error: "Dataset registered but missing telemetry or laps path",
+          dataset: { id, ...entry }
+        });
+      }
+
+      datasets[id] = entry;
+      if (!CURRENT_DATASET) CURRENT_DATASET = id;
+      if (id === CURRENT_DATASET) {
+        await reloadDataset(id).catch(err => {
+          console.error("Failed to reload dataset after upload", err);
+        });
+        startTelemetryTicker();
+      }
+
+      res.json({ ok: true, dataset: { id, ...entry } });
+    } catch (err) {
+      console.error("Upload error", err);
+      res.status(500).json({ error: "Upload failed" });
+    }
+  }
+);
+
 // select dataset
-app.post("/datasets/select", (req, res) => {
+app.post("/datasets/select", async (req, res) => {
   const { id } = req.body;
-  if (!DATASETS[id]) {
+  if (!datasets[id]) {
     return res.status(400).json({ error: "Unknown dataset" });
   }
   CURRENT_DATASET = id;
-  reloadDataset();
-  res.json({ ok: true, current_dataset: CURRENT_DATASET });
+  try {
+    await reloadDataset(id);
+    startTelemetryTicker();
+    res.json({ ok: true, current_dataset: CURRENT_DATASET });
+  } catch (err) {
+    console.error("Dataset reload error", err);
+    res.status(500).json({ error: "Failed to load dataset" });
+  }
 });
 
 // list drivers / cars for current dataset
@@ -104,14 +213,14 @@ app.get("/drivers", (req, res) => {
 });
 
 // select car / driver
-app.post("/drivers/select", (req, res) => {
+app.post("/drivers/select", async (req, res) => {
   const { id } = req.body;
   const carExists = telemAll.some(r => r.car_id === id);
   if (!carExists) {
     return res.status(400).json({ error: "Unknown car/driver id" });
   }
   CURRENT_CAR_ID = id;
-  reloadDataset();
+  await reloadDataset();
   res.json({ ok: true, current_car_id: CURRENT_CAR_ID });
 });
 
@@ -153,9 +262,9 @@ app.get("/strategy/recommendation", (req, res) => {
   });
 });
 
-// ---- AI MOCK ENDPOINTS ----
+// ---- AI ENDPOINTS ----
 
-// Natural-language pit strategist (mocked for hackathon)
+// Natural-language pit strategist
 app.post("/ai/pit-strategist", (req, res) => {
   const { question = "" } = req.body || {};
   const baseLap = CURRENT_STATE.lap || 1;
@@ -209,7 +318,7 @@ app.post("/ai/pit-strategist", (req, res) => {
   }
 });
 
-// Anomaly detector (mocked)
+// Anomaly detector
 app.post("/ai/anomaly", (req, res) => {
   const { signals = {}, lap } = req.body || {};
   if (hasVertex()) {
@@ -263,7 +372,7 @@ app.post("/ai/anomaly", (req, res) => {
   }
 });
 
-// Strategy explanation (mocked)
+// Strategy explanation
 app.post("/ai/explain", (req, res) => {
   const { strategy: incoming } = req.body || {};
   const bestLap = incoming?.best_pit_lap ?? CURRENT_STATE.lap + 3;
@@ -292,6 +401,16 @@ app.post("/ai/explain", (req, res) => {
 });
 
 const PORT = process.env.PORT || 8000;
-app.listen(PORT, () => {
-  console.log(`Backend running on http://localhost:${PORT}`);
-});
+
+bootstrapDataset()
+  .catch(err => {
+    console.error("Failed to load dataset on startup", err);
+  })
+  .finally(() => {
+    app.listen(PORT, () => {
+      console.log(`Backend running on http://localhost:${PORT}`);
+      if (effectiveRowLimit) {
+        console.log(`Loaded datasets with row limit: ${effectiveRowLimit}`);
+      }
+    });
+  });
